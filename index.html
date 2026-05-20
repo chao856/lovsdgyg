@@ -1,0 +1,1103 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="format-detection" content="telephone=no" />
+  <meta name="description" content="爱心弹窗惊喜动画" />
+  <meta property="og:title" content="爱心弹窗" />
+  <meta property="og:description" content="轻触屏幕，惊喜马上开始" />
+  <meta property="og:type" content="website" />
+  <title>爱心弹窗</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --popup-w: 118px;
+      --popup-h: 86px;
+      --popup-bar-h: 22px;
+      --popup-text: 14px;
+      --popup-dot: 8px;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #1a1a2e;
+      font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+      touch-action: none;
+      -webkit-tap-highlight-color: transparent;
+      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    }
+
+    html.desktop-mode,
+    html.desktop-mode body {
+      background: transparent !important;
+    }
+
+    html.desktop-mode #countdown {
+      background: rgba(0, 0, 0, 0.25);
+    }
+
+    html.desktop-mode #overlay.show {
+      background: rgba(0, 0, 0, 0.12);
+    }
+
+    #desktop-hint {
+      display: none;
+      position: fixed;
+      right: 16px;
+      bottom: 14px;
+      z-index: 200001;
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.75);
+      text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+      pointer-events: none;
+      user-select: none;
+    }
+
+    html.desktop-mode #desktop-hint {
+      display: block;
+    }
+
+    #wx-tap {
+      position: fixed;
+      inset: 0;
+      z-index: 300000;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      background: rgba(26, 26, 46, 0.96);
+      cursor: pointer;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    #wx-tap.hidden {
+      display: none;
+    }
+
+    #wx-tap p {
+      font-size: clamp(20px, 5.5vw, 28px);
+      font-weight: 700;
+      color: #ff6b9d;
+      letter-spacing: 0.08em;
+    }
+
+    #wx-tap span {
+      font-size: 14px;
+      color: rgba(255, 255, 255, 0.65);
+    }
+
+    #stage {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    #stage.done .popup {
+      box-shadow: none;
+    }
+
+    .popup {
+      position: absolute;
+      width: var(--popup-w);
+      height: var(--popup-h);
+      border-radius: 6px;
+      overflow: hidden;
+      box-shadow:
+        0 8px 24px rgba(0, 0, 0, 0.35),
+        0 0 0 1px rgba(255, 255, 255, 0.15);
+      transform-origin: center center;
+      animation: popIn 0.22s ease-out both;
+      pointer-events: none;
+    }
+
+    @keyframes popIn {
+      from {
+        opacity: 0;
+        transform: scale(0.4) rotate(-6deg);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1) rotate(0deg);
+      }
+    }
+
+    .popup.tilted {
+      animation-name: popInTilted;
+    }
+
+    @keyframes popInTilted {
+      from {
+        opacity: 0;
+        transform: scale(0.4) rotate(calc(var(--rot, 0deg) - 8deg));
+      }
+      to {
+        opacity: 1;
+        transform: scale(1) rotate(var(--rot, 0deg));
+      }
+    }
+
+    .popup-bar {
+      height: var(--popup-bar-h);
+      display: flex;
+      align-items: center;
+      padding: 0 8px;
+      gap: 5px;
+    }
+
+    .popup-dot {
+      width: var(--popup-dot);
+      height: var(--popup-dot);
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.75);
+    }
+
+    .popup-body {
+      height: calc(100% - var(--popup-bar-h));
+      background: #fafafa;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 4px;
+    }
+
+    .popup-text {
+      font-size: var(--popup-text);
+      font-weight: 600;
+      color: #3d3d4a;
+      letter-spacing: 0.08em;
+      white-space: nowrap;
+      user-select: none;
+    }
+
+    .popup.pink .popup-bar { background: linear-gradient(90deg, #ff6b9d, #ff8fab); }
+    .popup.cyan .popup-bar { background: linear-gradient(90deg, #2dd4bf, #5eead4); }
+    .popup.blue .popup-bar { background: linear-gradient(90deg, #60a5fa, #93c5fd); }
+    .popup.yellow .popup-bar { background: linear-gradient(90deg, #fbbf24, #fde047); color: #713f12; }
+
+    #fireworks {
+      position: fixed;
+      inset: 0;
+      z-index: 99999;
+      pointer-events: none;
+    }
+
+    #big-popup {
+      position: fixed;
+      inset: 0;
+      margin: auto;
+      width: min(72vw, 520px);
+      height: min(58vh, 380px);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow:
+        0 24px 60px rgba(255, 107, 157, 0.45),
+        0 0 0 2px rgba(255, 255, 255, 0.2);
+      z-index: 100000;
+      pointer-events: auto;
+      opacity: 0;
+      transform: scale(0.7);
+    }
+
+    #big-popup.show {
+      opacity: 1;
+      animation:
+        bigPopupIn 0.65s cubic-bezier(0.34, 1.45, 0.64, 1) forwards,
+        bigPopupShadow 3.2s ease-in-out 0.65s infinite;
+    }
+
+    @keyframes bigPopupIn {
+      from {
+        opacity: 0;
+        transform: scale(0.7);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+
+    @keyframes bigPopupShadow {
+      0%, 100% {
+        box-shadow:
+          0 24px 60px rgba(255, 107, 157, 0.4),
+          0 0 0 2px rgba(255, 255, 255, 0.2),
+          0 0 40px rgba(255, 105, 180, 0.15);
+      }
+      50% {
+        box-shadow:
+          0 28px 72px rgba(255, 107, 157, 0.65),
+          0 0 0 2px rgba(255, 255, 255, 0.35),
+          0 0 72px rgba(255, 105, 180, 0.45);
+      }
+    }
+
+    .big-popup-float {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      height: 100%;
+    }
+
+    #big-popup.show .big-popup-float {
+      animation: bigPopupFloat 4.2s ease-in-out 0.65s infinite;
+    }
+
+    @keyframes bigPopupFloat {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-8px); }
+    }
+
+    #big-popup .popup-bar {
+      height: 36px;
+      flex-shrink: 0;
+      background: linear-gradient(90deg, #ff4d8d, #ff85a8);
+    }
+
+    #big-popup .popup-body {
+      position: relative;
+      height: calc(100% - 36px);
+      background: #fff5f8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      overflow: hidden;
+    }
+
+    #big-popup .popup-body::before {
+      content: "";
+      position: absolute;
+      inset: -40%;
+      background: radial-gradient(circle at 50% 50%, rgba(255, 182, 210, 0.35), transparent 55%);
+      pointer-events: none;
+      animation: bodyGlow 5s ease-in-out infinite;
+    }
+
+    @keyframes bodyGlow {
+      0%, 100% { opacity: 0.45; }
+      50% { opacity: 0.95; }
+    }
+
+    .hearts-layer {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      overflow: hidden;
+    }
+
+    .hearts-layer span {
+      position: absolute;
+      bottom: -8%;
+      color: rgba(255, 105, 157, 0.55);
+      animation: heartDrift 5.5s ease-in infinite;
+      text-shadow: 0 0 12px rgba(255, 105, 157, 0.4);
+    }
+
+    .hearts-layer span:nth-child(1) { left: 8%; font-size: 14px; animation-delay: 0s; }
+    .hearts-layer span:nth-child(2) { left: 22%; font-size: 18px; animation-delay: 0.8s; }
+    .hearts-layer span:nth-child(3) { left: 38%; font-size: 12px; animation-delay: 1.6s; }
+    .hearts-layer span:nth-child(4) { left: 52%; font-size: 16px; animation-delay: 2.2s; }
+    .hearts-layer span:nth-child(5) { left: 66%; font-size: 13px; animation-delay: 0.4s; }
+    .hearts-layer span:nth-child(6) { left: 78%; font-size: 17px; animation-delay: 1.2s; }
+    .hearts-layer span:nth-child(7) { left: 90%; font-size: 11px; animation-delay: 2.8s; }
+    .hearts-layer span:nth-child(8) { left: 46%; font-size: 15px; animation-delay: 3.4s; }
+
+    @keyframes heartDrift {
+      0% {
+        transform: translateY(0) scale(0.5) rotate(0deg);
+        opacity: 0;
+      }
+      12% { opacity: 0.85; }
+      100% {
+        transform: translateY(-115%) scale(1.15) rotate(18deg);
+        opacity: 0;
+      }
+    }
+
+    #big-popup .big-popup-text {
+      position: relative;
+      z-index: 1;
+      font-size: clamp(22px, 4.5vw, 32px);
+      font-weight: 700;
+      color: #e11d74;
+      letter-spacing: 0.06em;
+      text-align: center;
+      line-height: 1.6;
+      user-select: none;
+    }
+
+    #big-popup.show .big-popup-text {
+      animation:
+        textPulse 2.8s ease-in-out infinite,
+        textShimmer 4s ease-in-out infinite;
+    }
+
+    @keyframes textPulse {
+      0%, 100% {
+        transform: scale(1);
+        letter-spacing: 0.06em;
+      }
+      50% {
+        transform: scale(1.04);
+        letter-spacing: 0.1em;
+      }
+    }
+
+    @keyframes textShimmer {
+      0%, 100% {
+        text-shadow:
+          0 0 8px rgba(255, 105, 157, 0.3),
+          0 0 20px rgba(255, 182, 210, 0.2);
+      }
+      50% {
+        text-shadow:
+          0 0 16px rgba(255, 105, 157, 0.75),
+          0 0 36px rgba(255, 182, 210, 0.55),
+          0 0 48px rgba(255, 140, 180, 0.35);
+      }
+    }
+
+    #overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0);
+      z-index: 99998;
+      pointer-events: none;
+      transition: background 0.5s ease;
+    }
+
+    #overlay.show {
+      background: rgba(0, 0, 0, 0.35);
+      pointer-events: auto;
+    }
+
+    #countdown {
+      position: fixed;
+      inset: 0;
+      z-index: 200000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(26, 26, 46, 0.94);
+      transition: opacity 0.45s ease;
+    }
+
+    #countdown.hide {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .countdown-ring {
+      position: absolute;
+      width: min(42vw, 220px);
+      height: min(42vw, 220px);
+      border-radius: 50%;
+      border: 3px solid var(--ring-color, rgba(239, 68, 68, 0.5));
+      animation: ringPulse 1s ease-out infinite;
+    }
+
+    @keyframes ringPulse {
+      0% { transform: scale(0.85); opacity: 0.35; }
+      50% { transform: scale(1.08); opacity: 1; }
+      100% { transform: scale(0.85); opacity: 0.35; }
+    }
+
+    #countdown-num {
+      position: relative;
+      font-size: clamp(96px, 22vw, 180px);
+      font-weight: 800;
+      line-height: 1;
+      letter-spacing: -0.04em;
+      animation: countPop 0.9s cubic-bezier(0.34, 1.4, 0.64, 1) both;
+    }
+
+    #countdown-num.c-red { color: #ef4444; }
+    #countdown-num.c-yellow { color: #facc15; }
+    #countdown-num.c-blue { color: #3b82f6; }
+
+    @keyframes countPop {
+      0% {
+        opacity: 0;
+        transform: scale(2.4);
+      }
+      45% {
+        opacity: 1;
+        transform: scale(0.88);
+      }
+      70% {
+        transform: scale(1.06);
+      }
+      100% {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+
+    @media (max-width: 768px) {
+      .popup {
+        border-radius: 5px;
+        box-shadow:
+          0 4px 14px rgba(0, 0, 0, 0.3),
+          0 0 0 1px rgba(255, 255, 255, 0.12);
+      }
+
+      .countdown-ring {
+        width: min(48vw, 160px);
+        height: min(48vw, 160px);
+      }
+
+      #countdown-num {
+        font-size: clamp(64px, 18vw, 100px);
+      }
+
+    }
+
+    @media (max-width: 768px) and (orientation: portrait) {
+      :root {
+        --popup-w: 64px;
+        --popup-h: 46px;
+        --popup-bar-h: 13px;
+        --popup-text: 9px;
+        --popup-dot: 4px;
+      }
+
+      .popup-text {
+        letter-spacing: 0.03em;
+      }
+
+      #big-popup {
+        width: min(74vw, 280px);
+        height: min(28vh, 190px);
+        border-radius: 10px;
+      }
+
+      #big-popup .popup-bar {
+        height: 26px;
+      }
+
+      #big-popup .popup-body {
+        height: calc(100% - 26px);
+        padding: 12px;
+      }
+
+      #big-popup .big-popup-text {
+        font-size: clamp(15px, 4.2vw, 19px);
+        line-height: 1.5;
+        letter-spacing: 0.04em;
+      }
+    }
+
+    @media (max-width: 768px) and (orientation: landscape) {
+      :root {
+        --popup-w: 86px;
+        --popup-h: 64px;
+        --popup-bar-h: 17px;
+        --popup-text: 10.5px;
+        --popup-dot: 6px;
+      }
+
+      #big-popup {
+        width: min(52vw, 320px);
+        height: min(62vh, 240px);
+      }
+    }
+
+    @media (max-width: 390px) and (orientation: portrait) {
+      :root {
+        --popup-w: 58px;
+        --popup-h: 42px;
+        --popup-bar-h: 12px;
+        --popup-text: 8.5px;
+        --popup-dot: 4px;
+      }
+
+      #big-popup {
+        width: min(72vw, 260px);
+        height: min(26vh, 175px);
+      }
+
+      #big-popup .big-popup-text {
+        font-size: clamp(14px, 4vw, 17px);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="wx-tap" class="hidden">
+    <p>轻触屏幕开启</p>
+    <span>爱心弹窗 · 微信专属版</span>
+  </div>
+  <div id="desktop-hint">按 Esc 退出</div>
+  <div id="countdown">
+    <div class="countdown-ring"></div>
+    <span id="countdown-num" class="c-red">3</span>
+  </div>
+  <div id="stage"></div>
+  <canvas id="fireworks"></canvas>
+  <div id="overlay"></div>
+  <div id="big-popup">
+    <div class="big-popup-float">
+      <div class="popup-bar">
+        <span class="popup-dot"></span>
+        <span class="popup-dot"></span>
+        <span class="popup-dot"></span>
+      </div>
+      <div class="popup-body">
+        <div class="hearts-layer" aria-hidden="true">
+          <span>♥</span><span>♥</span><span>♥</span><span>♥</span>
+          <span>♥</span><span>♥</span><span>♥</span><span>♥</span>
+        </div>
+        <p class="big-popup-text">熠熠向前，事事登高，天天开心</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    if (new URLSearchParams(location.search).get("desktop") === "1") {
+      document.documentElement.classList.add("desktop-mode");
+    }
+
+    const COLORS = ["pink", "cyan", "blue", "yellow"];
+    const MESSAGES = [
+      "按时吃饭", "多吃一点", "别饿肚子",
+      "早点睡觉", "别熬太晚", "好好休息",
+      "天凉加衣", "小心着凉", "注意保暖",
+      "别太劳累", "我心疼你", "照顾自己",
+      "出门小心", "注意安全", "乖乖等我",
+      "满心是你", "满眼是你", "唯独是你",
+      "偏爱予你", "温柔予你", "欢喜予你",
+      "心之所向", "情之所钟", "非你不可",
+      "你是唯一", "无可替代", "我的例外",
+      "为你心动", "因你欢喜", "念你不已",
+      "我喜欢你", "我爱你呀", "余生是你",
+      "朝思暮想", "念念不忘", "一见倾心",
+      "心心相印", "两情相悦", "情投意合",
+      "星河万顷", "不及你呀", "人间值得",
+      "三餐四季", "皆是与你", "朝暮与你",
+      "我在身边", "有我陪你", "为你撑腰",
+      "护你周全", "陪你左右", "伴你朝夕",
+      "不离不弃", "风雨同舟", "相守一生",
+      "岁岁年年", "年年有你", "携手同行",
+      "执子之手", "与子偕老", "共度余生",
+      "生日快乐", "纪念日乐", "节日快乐",
+      "岁岁有我", "年年有你", "平安喜乐",
+      "万事胜意", "与你同乐", "为你庆祝",
+      "未来可期", "我陪你走", "甜蜜相伴",
+      "幸福安康", "永远爱你", "爱你如初",
+      "我的宝贝", "我的女孩", "你最可爱",
+      "你超好看", "超级想你", "好想见你",
+      "抱抱你呀", "亲亲你呀", "不许难过",
+      "要开心呀", "笑一个嘛", "我错了呀",
+      "带你去吃", "马上就到", "都听你的",
+    ];
+    const HEART_DURATION = 5700;
+    const SURROUND_DURATION = 4300;
+
+    const stage = document.getElementById("stage");
+    const overlay = document.getElementById("overlay");
+    const bigPopup = document.getElementById("big-popup");
+
+    let colorIndex = 0;
+    let textIndex = 0;
+    let z = 1;
+
+    function isMobile() {
+      return window.innerWidth <= 768;
+    }
+
+    function isPortraitMobile() {
+      return isMobile() && window.innerHeight > window.innerWidth;
+    }
+
+    function syncMobileClass() {
+      document.documentElement.classList.toggle("mobile", isMobile());
+      document.documentElement.classList.toggle("portrait-mobile", isPortraitMobile());
+    }
+
+    function getPopupSize() {
+      const style = getComputedStyle(document.documentElement);
+      return {
+        w: parseFloat(style.getPropertyValue("--popup-w")) || 118,
+        h: parseFloat(style.getPropertyValue("--popup-h")) || 86,
+      };
+    }
+
+    function getHeartLayout() {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      const mobile = isMobile();
+      const portrait = isPortraitMobile();
+      const popup = getPopupSize();
+      const margin = portrait ? 6 : mobile ? 14 : 20;
+      const heartW = 32;
+      const heartH = 30;
+
+      let scale;
+      if (portrait) {
+        const scaleByW = (w - margin * 2 - popup.w) / heartW;
+        const scaleByH = (h - margin * 2 - popup.h) / heartH;
+        scale = Math.min(scaleByW, scaleByH) * 0.68;
+      } else if (mobile) {
+        scale = Math.min(w, h) / 40;
+      } else {
+        scale = Math.min(w, h) / 42;
+      }
+
+      return {
+        mobile,
+        portrait,
+        cx: w / 2,
+        cy: h * (portrait ? 0.44 : mobile ? 0.46 : 0.5),
+        scale,
+        margin,
+        heartSpread: portrait ? 0.55 : 0,
+        heartCount: portrait ? 32 : mobile ? 56 : 72,
+        surroundTicks: portrait ? 40 : mobile ? 65 : 90,
+        surroundPerTick: portrait ? 2 : mobile ? 3 : 5,
+      };
+    }
+
+    syncMobileClass();
+    window.addEventListener("resize", syncMobileClass);
+
+    function nextColor() {
+      const c = COLORS[colorIndex % COLORS.length];
+      colorIndex += 1;
+      return c;
+    }
+
+    function nextMessage() {
+      const msg = MESSAGES[textIndex % MESSAGES.length];
+      textIndex += 1;
+      return msg;
+    }
+
+    function heartPoint(t, scale, cx, cy) {
+      const x = 16 * Math.pow(Math.sin(t), 3);
+      const y = -(13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t));
+      return { x: cx + x * scale, y: cy + y * scale };
+    }
+
+    function heartPointSpread(t, scale, cx, cy, spreadMul) {
+      const core = heartPoint(t, scale, cx, cy);
+      if (!spreadMul) return core;
+      const dx = core.x - cx;
+      const dy = core.y - cy;
+      const len = Math.hypot(dx, dy) || 1;
+      const extra = spreadMul * scale;
+      return { x: core.x + (dx / len) * extra, y: core.y + (dy / len) * extra };
+    }
+
+    function buildHeartOutline(count) {
+      const points = [];
+      for (let i = 0; i < count; i += 1) {
+        const t = (i / count) * Math.PI * 2;
+        points.push(t);
+      }
+      return points;
+    }
+
+    function spawnPopup(x, y, jitter = 6, rotate = 0) {
+      const { w: popupW, h: popupH } = getPopupSize();
+      const layout = getHeartLayout();
+      const margin = layout.mobile ? layout.margin : 0;
+      let left = x - popupW / 2 + (Math.random() - 0.5) * jitter;
+      let top = y - popupH / 2 + (Math.random() - 0.5) * jitter;
+
+      if (layout.mobile) {
+        left = Math.max(margin, Math.min(left, window.innerWidth - popupW - margin));
+        top = Math.max(margin, Math.min(top, window.innerHeight - popupH - margin));
+      }
+
+      const el = document.createElement("div");
+      el.className = `popup ${nextColor()}`;
+      el.style.left = `${left}px`;
+      el.style.top = `${top}px`;
+      el.style.zIndex = String(z++);
+      if (rotate) {
+        el.style.setProperty("--rot", `${rotate}deg`);
+        el.classList.add("tilted");
+        el.style.transform = `rotate(${rotate}deg)`;
+      }
+
+      el.innerHTML = `
+        <div class="popup-bar">
+          <span class="popup-dot"></span>
+          <span class="popup-dot"></span>
+          <span class="popup-dot"></span>
+        </div>
+        <div class="popup-body"><span class="popup-text">${nextMessage()}</span></div>
+      `;
+
+      stage.appendChild(el);
+      return el;
+    }
+
+    function runHeartPhase() {
+      return new Promise((resolve) => {
+        const layout = getHeartLayout();
+        const { cx, cy, scale, heartCount, heartSpread } = layout;
+        const params = buildHeartOutline(heartCount);
+        const interval = HEART_DURATION / heartCount;
+        let i = 0;
+
+        const timer = setInterval(() => {
+          if (i >= heartCount) {
+            clearInterval(timer);
+            resolve();
+            return;
+          }
+          const p = heartPointSpread(params[i], scale, cx, cy, heartSpread);
+          const rot = (Math.random() - 0.5) * (layout.portrait ? 6 : 10);
+          spawnPopup(p.x, p.y, layout.portrait ? 6 : layout.mobile ? 8 : 10, rot);
+          i += 1;
+        }, interval);
+      });
+    }
+
+    function spawnScatterMobile(layout) {
+      const { w: popupW, h: popupH } = getPopupSize();
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const m = layout.margin;
+      const zone = Math.random();
+      let x;
+      let y;
+
+      if (zone < 0.3) {
+        y = m + popupH * 0.5 + Math.random() * (vh * 0.2);
+        x = m + popupW * 0.5 + Math.random() * (vw - m * 2 - popupW);
+      } else if (zone < 0.6) {
+        y = vh * 0.75 + Math.random() * (vh * 0.22 - m - popupH);
+        x = m + popupW * 0.5 + Math.random() * (vw - m * 2 - popupW);
+      } else if (zone < 0.8) {
+        x = m + popupW * 0.5 + Math.random() * (vw * 0.22);
+        y = m + popupH + Math.random() * (vh - m * 2 - popupH);
+      } else {
+        x = vw * 0.78 + Math.random() * (vw * 0.2 - m - popupW);
+        y = m + popupH + Math.random() * (vh - m * 2 - popupH);
+      }
+
+      spawnPopup(x, y, 10, (Math.random() - 0.5) * 10);
+    }
+
+    function spawnAroundHeart(cx, cy, scale, layout) {
+      const { mobile, portrait } = layout;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+
+      if (portrait && Math.random() < 0.62) {
+        spawnScatterMobile(layout);
+        return;
+      }
+
+      const t = Math.random() * Math.PI * 2;
+      const inner = scale * (portrait ? 7 : mobile ? 14 : 16);
+      const outer = portrait
+        ? Math.min(vw, vh) * 0.5
+        : scale * (mobile ? 26 : 30);
+      const r = inner + Math.random() * (outer - inner);
+      const p = heartPoint(t, 1, 0, 0);
+      const len = Math.hypot(p.x, p.y) || 1;
+      const nx = p.x / len;
+      const ny = p.y / len;
+      const spread = portrait ? 0.12 + Math.random() * 0.1 : 0.1 + Math.random() * 0.12;
+      const x = cx + nx * r + p.x * scale * spread;
+      const y = cy + ny * r + p.y * scale * spread;
+      spawnPopup(
+        x,
+        y,
+        portrait ? 16 : mobile ? 22 : 36,
+        (Math.random() - 0.5) * (portrait ? 10 : mobile ? 16 : 22),
+      );
+    }
+
+    function runSurroundPhase() {
+      return new Promise((resolve) => {
+        const layout = getHeartLayout();
+        const { cx, cy, scale, surroundTicks, surroundPerTick } = layout;
+        const interval = SURROUND_DURATION / surroundTicks;
+        let i = 0;
+
+        const timer = setInterval(() => {
+          if (i >= surroundTicks) {
+            clearInterval(timer);
+            resolve();
+            return;
+          }
+
+          for (let n = 0; n < surroundPerTick; n += 1) {
+            spawnAroundHeart(cx, cy, scale, layout);
+          }
+          i += 1;
+        }, interval);
+      });
+    }
+
+    const FIREWORK_COLORS = [
+      "#ff6b9d", "#ff8fab", "#2dd4bf", "#5eead4",
+      "#60a5fa", "#93c5fd", "#fbbf24", "#fde047", "#ffffff", "#e879f9",
+    ];
+
+    class Fireworks {
+      constructor(canvas) {
+        this.canvas = canvas;
+        this.ctx = canvas.getContext("2d", { alpha: true, desynchronized: true });
+        this.rockets = [];
+        this.particles = [];
+        this.running = false;
+        this.spawnTimer = null;
+        this.rafId = 0;
+        this.lastTs = 0;
+        this.setPerformanceLimits();
+        this.resize = this.resize.bind(this);
+        this.loop = this.loop.bind(this);
+        window.addEventListener("resize", () => {
+          this.setPerformanceLimits();
+          this.resize();
+        });
+        this.resize();
+      }
+
+      setPerformanceLimits() {
+        const mobile = window.innerWidth <= 768;
+        this.MAX_PARTICLES = mobile ? 280 : 520;
+        this.MAX_ROCKETS = mobile ? 4 : 6;
+      }
+
+      resize() {
+        const mobile = window.innerWidth <= 768;
+        const dpr = Math.min(window.devicePixelRatio || 1, mobile ? 2 : 1.25);
+        this.w = window.innerWidth;
+        this.h = window.innerHeight;
+        this.canvas.width = Math.floor(this.w * dpr);
+        this.canvas.height = Math.floor(this.h * dpr);
+        this.canvas.style.width = `${this.w}px`;
+        this.canvas.style.height = `${this.h}px`;
+        this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+
+      launchRocket() {
+        if (this.rockets.length >= this.MAX_ROCKETS) return;
+        if (this.particles.length > this.MAX_PARTICLES * 0.85) return;
+
+        const fromEdge = Math.random() < 0.3;
+        const fromLeft = Math.random() < 0.5;
+        let x;
+        let vx;
+        if (fromEdge) {
+          x = fromLeft ? this.w * 0.06 : this.w * 0.94;
+          vx = fromLeft ? 2.5 + Math.random() * 2 : -(2.5 + Math.random() * 2);
+        } else {
+          x = this.w * (0.04 + Math.random() * 0.92);
+          vx = (Math.random() - 0.5) * 4;
+        }
+
+        this.rockets.push({
+          x,
+          y: this.h + 6,
+          vx,
+          vy: -(13 + Math.random() * 7),
+          c: Math.floor(Math.random() * FIREWORK_COLORS.length),
+          targetY: this.h * (0.03 + Math.random() * 0.2),
+        });
+      }
+
+      explode(x, y, colorIdx) {
+        const room = this.MAX_PARTICLES - this.particles.length;
+        if (room <= 0) return;
+        const count = Math.min(36 + (Math.random() * 18 | 0), room);
+        for (let i = 0; i < count; i += 1) {
+          const angle = Math.random() * Math.PI * 2;
+          const speed = 4 + Math.random() * 8;
+          this.particles.push({
+            x,
+            y,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            life: 1,
+            decay: 0.007 + Math.random() * 0.008,
+            c: colorIdx,
+            gravity: 0.028,
+          });
+        }
+      }
+
+      update(dt) {
+        const rockets = this.rockets;
+        for (let i = rockets.length - 1; i >= 0; i -= 1) {
+          const r = rockets[i];
+          r.x += r.vx * dt;
+          r.y += r.vy * dt;
+          r.vy *= 0.985;
+          if (r.vy >= -0.5 || r.y <= r.targetY) {
+            this.explode(r.x, r.y, r.c);
+            rockets[i] = rockets[rockets.length - 1];
+            rockets.pop();
+          }
+        }
+
+        const parts = this.particles;
+        for (let i = parts.length - 1; i >= 0; i -= 1) {
+          const p = parts[i];
+          p.x += p.vx * dt;
+          p.y += p.vy * dt;
+          p.vy += p.gravity * dt;
+          p.vx *= 0.985;
+          p.life -= p.decay * dt;
+          if (p.life <= 0) {
+            parts[i] = parts[parts.length - 1];
+            parts.pop();
+          }
+        }
+      }
+
+      draw() {
+        const { ctx, w, h } = this;
+        ctx.clearRect(0, 0, w, h);
+
+        const rockets = this.rockets;
+        for (let i = 0; i < rockets.length; i += 1) {
+          const r = rockets[i];
+          ctx.fillStyle = FIREWORK_COLORS[r.c];
+          ctx.fillRect(r.x - 3, r.y - 3, 6, 6);
+        }
+
+        const parts = this.particles;
+        for (let i = 0; i < parts.length; i += 1) {
+          const p = parts[i];
+          if (p.life < 0.08) continue;
+          ctx.globalAlpha = p.life;
+          ctx.fillStyle = FIREWORK_COLORS[p.c];
+          const s = 1.6 + p.life * 1.4;
+          ctx.fillRect(p.x - s * 0.5, p.y - s * 0.5, s, s);
+        }
+        ctx.globalAlpha = 1;
+      }
+
+      loop(ts) {
+        if (!this.running) return;
+        if (!this.lastTs) this.lastTs = ts;
+        const dt = Math.min((ts - this.lastTs) / 16.67, 2);
+        this.lastTs = ts;
+        this.update(dt);
+        this.draw();
+        this.rafId = requestAnimationFrame(this.loop);
+      }
+
+      start() {
+        if (this.running) return;
+        this.running = true;
+        this.lastTs = 0;
+        for (let i = 0; i < 4; i += 1) {
+          setTimeout(() => this.launchRocket(), i * 150);
+        }
+        this.spawnTimer = setInterval(() => this.launchRocket(), 480);
+        this.rafId = requestAnimationFrame(this.loop);
+      }
+    }
+
+    const fireworks = new Fireworks(document.getElementById("fireworks"));
+
+    function freezePopups() {
+      stage.querySelectorAll(".popup").forEach((el) => {
+        const tr = getComputedStyle(el).transform;
+        if (tr && tr !== "none") {
+          el.style.transform = tr;
+        }
+        el.style.animation = "none";
+      });
+    }
+
+    function showBigPopup() {
+      freezePopups();
+      stage.classList.add("done");
+      overlay.classList.add("show");
+      bigPopup.classList.add("show");
+      fireworks.start();
+    }
+
+    function runCountdown() {
+      return new Promise((resolve) => {
+        const wrap = document.getElementById("countdown");
+        const numEl = document.getElementById("countdown-num");
+        const ringEl = document.querySelector(".countdown-ring");
+        const steps = [
+          { text: "3", cls: "c-red", ring: "rgba(239, 68, 68, 0.55)" },
+          { text: "2", cls: "c-yellow", ring: "rgba(250, 204, 21, 0.55)" },
+          { text: "1", cls: "c-blue", ring: "rgba(59, 130, 246, 0.55)" },
+        ];
+        let step = 0;
+
+        const show = () => {
+          const s = steps[step];
+          numEl.textContent = s.text;
+          numEl.className = s.cls;
+          ringEl.style.setProperty("--ring-color", s.ring);
+          numEl.style.animation = "none";
+          void numEl.offsetWidth;
+          numEl.style.animation = "";
+          step += 1;
+          if (step < steps.length) {
+            setTimeout(show, 1000);
+          } else {
+            setTimeout(() => {
+              wrap.classList.add("hide");
+              setTimeout(() => {
+                wrap.remove();
+                resolve();
+              }, 450);
+            }, 1000);
+          }
+        };
+
+        ringEl.style.setProperty("--ring-color", steps[0].ring);
+        show();
+      });
+    }
+
+    async function start() {
+      await runCountdown();
+      await runHeartPhase();
+      await runSurroundPhase();
+      showBigPopup();
+    }
+
+    function isWeChat() {
+      return /MicroMessenger/i.test(navigator.userAgent);
+    }
+
+    function boot() {
+      if (isWeChat()) {
+        const tap = document.getElementById("wx-tap");
+        tap.classList.remove("hidden");
+        const go = () => {
+          tap.classList.add("hidden");
+          start();
+        };
+        tap.addEventListener("click", go, { once: true });
+        tap.addEventListener("touchend", (e) => {
+          e.preventDefault();
+          go();
+        }, { once: true, passive: false });
+        return;
+      }
+      start();
+    }
+
+    window.addEventListener("load", boot);
+  </script>
+</body>
+</html>
